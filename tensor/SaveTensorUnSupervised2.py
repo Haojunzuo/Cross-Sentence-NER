@@ -92,7 +92,7 @@ class Bert_NerModel(nn.Module):
         self.relayTensor = torch.cat([self.relayTensor, relay], 0)
         # 无监督学习，只训练一次，在训练过程中保存中继节点。
         if shape != 50:
-            torch.save(self.relayTensor, 'relayTensorDevUnSupervised.pt')
+            torch.save(self.relayTensor, 'dev-star-unsupervised.pt')
         pre = self.classifier(star_out)
         if batch_label is not None:
             loss = self.loss_fun(pre.reshape(-1, pre.shape[-1]), batch_label.reshape(-1))

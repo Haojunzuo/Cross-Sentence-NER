@@ -74,7 +74,7 @@ class Bert_LSTM_NerModel(nn.Module):
         self.relayTensorDev = relayTensorDev
         self.relayTensorTrain = relayTensorTrain
         self.windowSize = windowSize
-        self.bert = BertModel.from_pretrained('F:\\NER Embedding\\Chinese-BERT-base')
+        self.bert = BertModel.from_pretrained('/home/cjh/NERCode/Chinese-BERT-base')
         for name, param in self.bert.named_parameters():
             param.requires_grad = False
 
@@ -130,30 +130,32 @@ class Bert_LSTM_NerModel(nn.Module):
 
 if __name__ == "__main__":
 
-    relayTensorTrain = torch.load('relayTensorTrainUnSupervised.pt')
-    tailTrain = relayTensorTrain[-8:]
-    headTrain = relayTensorTrain[0:8]
-    tempTensor = torch.cat([tailTrain, relayTensorTrain], dim=0)
-    relayTensorTrain = torch.cat([tempTensor, headTrain], dim=0)
-    relayTensorDev = torch.load('relayTensorDevUnSupervised.pt')
-    tailDev = relayTensorDev[-8:]
-    headDev = relayTensorDev[0:8]
-    tempTensor = torch.cat([tailDev, relayTensorDev], dim=0)
-    relayTensorDev = torch.cat([tempTensor, headDev], dim=0)
-    relayTensorTest = torch.load('relayTensorTest.pt')
-    train_text, train_label = read_data(os.path.join("data", "train.txt"))
-    dev_text, dev_label = read_data(os.path.join("data", "dev.txt"))
-    test_text, test_label = read_data(os.path.join("data", "test.txt"))
-    label_2_index, index_2_label = build_label(train_label)
-    tokenizer = BertTokenizer.from_pretrained('F:\\NER Embedding\\Chinese-BERT-base')
-
     batch_size = 50
     epoch = 100
     max_len = 30
     lr = 0.0005
     lstm_hidden = 128
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    windowSize = 2
+    device = "cuda:1" if torch.cuda.is_available() else "cpu"
+    windowSize = 4
+
+    relayTensorTrain = torch.load('../tensor/sentenceRep/train-star-unsupervised.pt')
+    tailTrain = relayTensorTrain[-8:]
+    headTrain = relayTensorTrain[0:8]
+    tempTensor = torch.cat([tailTrain, relayTensorTrain], dim=0)
+    relayTensorTrain = torch.cat([tempTensor, headTrain], dim=0).to(device)
+    relayTensorDev = torch.load('../tensor/sentenceRep/dev-star-unsupervised.pt')
+    tailDev = relayTensorDev[-8:]
+    headDev = relayTensorDev[0:8]
+    tempTensor = torch.cat([tailDev, relayTensorDev], dim=0)
+    relayTensorDev = torch.cat([tempTensor, headDev], dim=0).to(device)
+    relayTensorTest = torch.load('../tensor/sentenceRep/dev-bert-wwm-unsupervised.pt').to(device)
+    train_text, train_label = read_data(os.path.join("../data", "train.txt"))
+    dev_text, dev_label = read_data(os.path.join("../data", "dev.txt"))
+    test_text, test_label = read_data(os.path.join("../data", "test.txt"))
+    label_2_index, index_2_label = build_label(train_label)
+    tokenizer = BertTokenizer.from_pretrained('/home/cjh/NERCode/Chinese-BERT-base')
+
+
 
     train_dataset = BertDataset(train_text, train_label, label_2_index, max_len, tokenizer)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
@@ -165,6 +167,7 @@ if __name__ == "__main__":
     opt = AdamW(model.parameters(), lr)
 
     best_f1_score = 0
+    scoreList = []
     for e in range(epoch):
         model.train()
         for batch_text_index, batch_label_index, batch_len, sentence_index in train_dataloader:
@@ -206,4 +209,8 @@ if __name__ == "__main__":
         if f1_score > best_f1_score:
             best_f1_score = f1_score
         # print(f"f1:{f1_score, best_f1_score}")
+        scoreList.append(f1_score)
         print("f1:{}, best_f1:{}".format(f1_score, best_f1_score))
+
+    scoreList.sort(reverse=True)
+    print(scoreList)

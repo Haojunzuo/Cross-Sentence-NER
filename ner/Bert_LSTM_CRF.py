@@ -70,7 +70,7 @@ class Bert_LSTM_NerModel(nn.Module):
     def __init__(self, lstm_hidden, class_num):
         super().__init__()
 
-        self.bert = BertModel.from_pretrained('F:\\NER Embedding\\Chinese-BERT-base')
+        self.bert = BertModel.from_pretrained('/home/cjh/NERCode/Chinese-BERT-base')
         for name, param in self.bert.named_parameters():
             param.requires_grad = False
 
@@ -98,65 +98,72 @@ class Bert_LSTM_NerModel(nn.Module):
             return pre
 
 if __name__ == "__main__":
-
-    train_text, train_label = read_data(os.path.join("data", "train.txt"))
-    dev_text, dev_label = read_data(os.path.join("data", "dev.txt"))
-    test_text, test_label = read_data(os.path.join("data", "test.txt"))
-    label_2_index, index_2_label = build_label(train_label)
-    tokenizer = BertTokenizer.from_pretrained('F:\\NER Embedding\\Chinese-BERT-base')
-
     batch_size = 50
     epoch = 100
     max_len = 30
     lr = 0.0005
     lstm_hidden = 128
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda:1" if torch.cuda.is_available() else "cpu"
 
-    train_dataset = BertDataset(train_text, train_label, label_2_index, max_len, tokenizer)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    scoreListAll = []
+    for i in range(3):
+        train_text, train_label = read_data(os.path.join("../data", "train.txt"))
+        dev_text, dev_label = read_data(os.path.join("../data", "dev.txt"))
+        test_text, test_label = read_data(os.path.join("../data", "test.txt"))
+        label_2_index, index_2_label = build_label(train_label)
+        tokenizer = BertTokenizer.from_pretrained('/home/cjh/NERCode/Chinese-BERT-base')
 
-    dev_dataset = BertDataset(dev_text, dev_label, label_2_index, max_len, tokenizer)
-    dev_dataloader = DataLoader(dev_dataset, batch_size=batch_size, shuffle=False)
+        train_dataset = BertDataset(train_text, train_label, label_2_index, max_len, tokenizer)
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
-    model = Bert_LSTM_NerModel(lstm_hidden, len(label_2_index)).to(device)
-    opt = AdamW(model.parameters(), lr)
+        dev_dataset = BertDataset(dev_text, dev_label, label_2_index, max_len, tokenizer)
+        dev_dataloader = DataLoader(dev_dataset, batch_size=batch_size, shuffle=False)
 
-    for e in range(epoch):
-        model.train()
-        for batch_text_index, batch_label_index, batch_len in train_dataloader:
-            batch_text_index = batch_text_index.to(device)
-            batch_label_index = batch_label_index.to(device)
-            loss = model.forward(batch_text_index, batch_label_index)
-            loss.backward()
+        model = Bert_LSTM_NerModel(lstm_hidden, len(label_2_index)).to(device)
+        opt = AdamW(model.parameters(), lr)
 
-            opt.step()
-            opt.zero_grad()
+        scoreList = []
+        for e in range(epoch):
+            model.train()
+            for batch_text_index, batch_label_index, batch_len in train_dataloader:
+                batch_text_index = batch_text_index.to(device)
+                batch_label_index = batch_label_index.to(device)
+                loss = model.forward(batch_text_index, batch_label_index)
+                loss.backward()
 
-            print(f'loss:{loss:.2f}')
+                opt.step()
+                opt.zero_grad()
 
-        model.eval()
+                print(f'loss:{loss:.2f}')
 
-        all_pre = []
-        all_tag = []
-        for batch_text_index, batch_label_index, batch_len in dev_dataloader:
-            batch_text_index = batch_text_index.to(device)
-            batch_label_index = batch_label_index.to(device)
-            pre = model.forward(batch_text_index)
+            model.eval()
 
-            # 使用CRF之后，此处不需再转为list
-            # pre = pre.cpu().numpy().tolist()
-            tag = batch_label_index.cpu().numpy().tolist()
+            all_pre = []
+            all_tag = []
+            for batch_text_index, batch_label_index, batch_len in dev_dataloader:
+                batch_text_index = batch_text_index.to(device)
+                batch_label_index = batch_label_index.to(device)
+                pre = model.forward(batch_text_index)
 
-            # 消除pad和特殊字符影响，pad和特殊字符不参与F1分数计算
-            for p, t, l in zip(pre, tag, batch_len):
-                p = p[1:1 + l]
-                t = t[1:1 + l]
+                # 使用CRF之后，此处不需再转为list
+                # pre = pre.cpu().numpy().tolist()
+                tag = batch_label_index.cpu().numpy().tolist()
 
-                p = [index_2_label[i] for i in p]
-                t = [index_2_label[i] for i in t]
+                # 消除pad和特殊字符影响，pad和特殊字符不参与F1分数计算
+                for p, t, l in zip(pre, tag, batch_len):
+                    p = p[1:1 + l]
+                    t = t[1:1 + l]
 
-                all_pre.append(p)
-                all_tag.append(t)
+                    p = [index_2_label[i] for i in p]
+                    t = [index_2_label[i] for i in t]
 
-        f1_score = seq_f1_score(all_tag, all_pre)
-        print(f"f1:{f1_score}")
+                    all_pre.append(p)
+                    all_tag.append(t)
+
+            f1_score = seq_f1_score(all_tag, all_pre)
+            scoreList.append(f1_score)
+            print(f"f1:{f1_score}")
+        scoreList.sort(reverse=True)
+        scoreListAll.append(scoreList)
+        print(scoreList)
+    print(scoreListAll)
